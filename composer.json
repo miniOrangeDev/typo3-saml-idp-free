@@ -1,0 +1,37 @@
+{
+  "name": "miniorange/idp",
+  "type": "typo3-cms-extension",
+  "description": "Miniorange Saml IDP Extension provides SSO/Login to any of your third party site using Typo3 user credentials",
+  "license": "GPL-2.0-or-later",
+  "authors": [
+    {
+      "name": "miniOrange",
+      "role": "Developer"
+    }
+  ],
+  "require": {
+    "typo3/cms-core": "^8. || ^9. || ^10. || ^11. || ^12."
+  },
+  "version": "1.0.4",
+  "autoload": {
+    "psr-4": {
+      "Miniorange\\Idp\\": "Classes",
+      "Miniorange\\Helper\\": "Helper"
+    }
+  },
+  "config": {
+    "allow-plugins": {
+      "typo3/class-alias-loader": true,
+      "typo3/cms-composer-installers": true,
+      "ergebnis/composer-normalize": true
+    },
+    "bin-dir": ".Build/bin",
+    "sort-packages": true,
+    "vendor-dir": ".Build/vendor"
+  },
+  "extra": {
+    "typo3/cms": {
+      "extension-key": "idp"
+    }
+  }
+}
