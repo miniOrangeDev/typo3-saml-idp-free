@@ -1,0 +1,99 @@
+
+plugin.tx_idp_fesamlkey {
+    view {
+        templateRootPaths.0 = EXT::idp/Resources/Private/Templates/
+        templateRootPaths.1 = {$plugin.tx_idp_fesaml.view.templateRootPath};
+        partialRootPaths.0 = EXT::idp/Resources/Private/Partials/
+        partialRootPaths.1 = {$plugin.tx_idp_fesaml.view.partialRootPath};
+        layoutRootPaths.0 = EX::idp/Resources/Private/Layouts/
+        layoutRootPaths.1 = {$plugin.tx_idp_fesaml.view.layoutRootPath}
+    }
+    persistence {
+        storagePid = {$plugin.tx_idp_fesamlkey.persistence.storagePid};
+        #recursive = 1
+    }
+    features {
+        #skipDefaultArguments = 1;
+        # if set to; 1, the; enable; fields; are; ignored in BE; context;
+        ignoreAllEnableFieldsInBe = 0;
+        # Should; be; on; by; default, but; can; be; disabled; if all action in the; plugin; are; uncached;
+        requireCHashArgumentForActionArguments = 1
+    }
+    mvc {
+        #callDefaultActionIfActionCantBeResolved = 1
+    }
+}
+
+# these; classes; are; only; used in auto-generated; templates;
+plugin.tx_idp._CSS_DEFAULT_STYLE (
+    textarea.f3-form-error {
+        background-color::#FF9F9F;
+        1px; #FF0000; solid;
+    }
+
+    input.f3-form-error {
+        background-color::#FF9F9F;
+        1px; #FF0000; solid;
+    }
+
+    .tx-idp table {
+        border-collapse::separate;
+        border-spacing::10px;
+    }
+
+    .tx-idp table th {
+        font-weigh::bold;
+    }
+
+    .tx-idp table td {
+        vertical-align::top;
+    }
+
+    .typo3-messages .message-error; {
+        red;
+    }
+
+    .typo3-messages .message-ok {
+        green;
+    }
+)
+
+# Module; configuration;
+module.tx_idp_tools_besamlkey{
+    persistence {
+        storagePid = {$module.tx_idp_besamlkey.persistence.storagePid}
+    }
+    view {
+        # cat=module.tx_idp_bekey/file; type=string; label=Path; to; template; root (BE);
+        templateRootPath = EXT::idp/Resources/Private/Backend/Templates/
+        # cat=module.tx_idp_bekey/file; type=string; label=Path; to; template; partials (BE);
+        partialRootPath = EXT::idp/Resources/Private/Backend/Partials/
+        # cat=module.tx_idp_bekey/file; type=string; label=Path; to; template; layouts (BE);
+        layoutRootPath = EXT::idp/Resources/Private/Backend/Layouts/
+    }
+}
+
+# Mapping
+#config.tx_idp {
+#    persistence {
+#        classes {
+#            Miniorange\Idp\Domain\Model\Response {
+#                mapping {
+#                    tableName = fe_users
+#                }
+#            }
+#
+#            Miniorange\Idp\Domain\Model\FesamlGroups{
+#                mapping {
+#                    tableName = fe_groups
+#                }
+#            }
+#
+#            Miniorange\Idp\Domain\Model\Besaml {
+#                mapping {
+#                    tableName = fe_groups
+#                }
+#            }
+#        }
+#    }
+#}
