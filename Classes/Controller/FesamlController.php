@@ -22,9 +22,12 @@ use TYPO3\CMS\Core\Database\Connection;
 use Miniorange\Idp\Helper\MiniOrangeAuthnRequest;
 use DOMDocument;
 use TYPO3\CMS\Core\Information\Typo3Version;
+use TYPO3\CMS\Core\Utility\VersionNumberUtility;
 use Miniorange\Idp\Helper\AESEncryption;
 use Miniorange\Idp\Helper\CustomerSaml;
-
+use TYPO3\CMS\Frontend\Authentication\FrontendUserAuthentication;
+use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Context\UserAspect;
 
 /***
  *
@@ -42,6 +45,42 @@ use Miniorange\Idp\Helper\CustomerSaml;
  */
 class FesamlController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionController
 {
+    /**
+     * Helper method to execute database queries with TYPO3 v12/v13 compatibility
+     */
+    private function executeQuery($queryBuilder, $isSelect = true)
+    {
+        // Check if the new methods exist (TYPO3 v13+)
+        if (method_exists($queryBuilder, 'executeQuery') && method_exists($queryBuilder, 'executeStatement')) {
+            return $isSelect ? $queryBuilder->executeQuery() : $queryBuilder->executeStatement();
+        } else {
+            // TYPO3 v12 and earlier - use legacy methods
+            return $queryBuilder->execute();
+        }
+    }
+
+    /**
+     * Helper method to fetch data with TYPO3 v12/v13 compatibility
+     */
+    private function fetchData($result, $method = 'fetch')
+    {
+        // Check if the new methods exist (TYPO3 v13+)
+        if (method_exists($result, 'fetchAssociative') && method_exists($result, 'fetchAllAssociative')) {
+            switch ($method) {
+                case 'fetch':
+                    return $result->fetchAssociative();
+                case 'fetchAll':
+                    return $result->fetchAllAssociative();
+                case 'fetchOne':
+                    return $result->fetchOne();
+                default:
+                    return $result->fetchAssociative();
+            }
+        } else {
+            // TYPO3 v12 and earlier - use legacy methods
+            return $result->$method();
+        }
+    }
 
     protected $fesamlRepository = null;
 
@@ -60,6 +99,7 @@ class FesamlController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionControlle
     private $issuer = null;
     private $name_id_attr = null;
     private $saml_sp_object = null;
+    private $saml_idp_object = null;
     private $name_id_attr_format = null;
     private $state = null;
     private $audience = null;
@@ -95,6 +135,7 @@ class FesamlController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionControlle
     {
         $version = new Typo3Version();
         $typo3Version = $version->getVersion();
+        
         if (isset($_REQUEST['SAMLRequest']) || isset($_POST['SAMLRequest'])) {
 
             $samlRequest = isset($_POST['SAMLRequest']) ? $_POST['SAMLRequest'] : $_REQUEST['SAMLRequest'];
@@ -115,7 +156,14 @@ class FesamlController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionControlle
             $sp_issuer_from_request = $authnRequest->getIssuer();
 
             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('saml');
-            $sp_name = $queryBuilder->select('sp_name')->from('saml')->where($queryBuilder->expr()->eq('sp_entity_id', $queryBuilder->createNamedParameter($sp_issuer_from_request, \PDO::PARAM_STR)))->execute()->fetch();
+            $sp_name = $this->fetchData(
+                $this->executeQuery($queryBuilder->select('sp_name')->from('saml')->where($queryBuilder->expr()->eq('sp_entity_id', $queryBuilder->createNamedParameter($sp_issuer_from_request, ))), true),
+                'fetch'
+            );
+            $all_configs = $this->fetchData(
+                $this->executeQuery($queryBuilder->select('sp_name', 'sp_entity_id', 'idp_entity_id')->from('saml'), true),
+                'fetchAll'
+            );
             if($sp_name)
             {
                 $sp_name = is_array($sp_name) ? $sp_name['sp_name'] : $sp_name;
@@ -128,45 +176,100 @@ class FesamlController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionControlle
         if (isset($_REQUEST['sp_name'])) {
             $sp_name = $_REQUEST['sp_name'];
         }
+        
+        // Initialize $sp_name if not set
+        if (!isset($sp_name)) {
+            $sp_name = null;
+        }
+        
         $this->controlAction($sp_name);
 
         if (isset($_REQUEST['option']) and $_REQUEST['option'] == 'mosaml_metadata') {
-            SAMLUtilities::mo_saml_miniorange_generate_metadata($sp_name);
+            if ($sp_name !== null) {
+                SAMLUtilities::mo_saml_miniorange_generate_metadata($sp_name);
+            }
         } else {
             foreach ($_REQUEST as $key => $value) {
                 if (strpos($value, "option=mosaml_metadata") !== false) {
-                    SAMLUtilities::mo_saml_miniorange_generate_metadata($sp_name);
+                    if ($sp_name !== null) {
+                        SAMLUtilities::mo_saml_miniorange_generate_metadata($sp_name);
+                    }
                     break;
                 }
             }
         }
+        if ($this->saml_idp_object === null) {
+            // Handle case where no IDP object is available
+            echo("No IDP configuration found. Please contact your administrator!");
+            exit;
+        }
+        
         $idpArray = json_decode($this->saml_idp_object);
         $issuer = $idpArray->idp_entity_id;
-        if (is_null($GLOBALS['TSFE']->fe_user->user)) {
-            $responseFactory = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(
-                \Psr\Http\Message\ResponseFactoryInterface::class
-            );
 
-            $response = $responseFactory
-                ->createResponse()
-                ->withAddedHeader('location', $issuer);
-            return $response;
+        
+        // Get frontend user safely
+        $feUser = null;
+
+        if($typo3Version < 13) {
+            if(isset($GLOBALS['TSFE']) && $GLOBALS['TSFE'] instanceof \TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController) {
+                if(property_exists($GLOBALS['TSFE'], 'fe_user')) {
+                    $feUser = $GLOBALS['TSFE']->fe_user; // object
+                }
+            }
+        
+            if (is_null($feUser) || is_null($feUser->user)) {
+                $responseFactory = GeneralUtility::makeInstance(\Psr\Http\Message\ResponseFactoryInterface::class);
+                $response = $responseFactory->createResponse()->withAddedHeader('location', $issuer);
+                return $response;
+            }
+        
+            $user = $feUser->user; // array inside object
         }
-
-        $user = $GLOBALS['TSFE']->fe_user->user;
-        $email = $GLOBALS['TSFE']->fe_user->user['email'];
-        $username = $GLOBALS['TSFE']->fe_user->user['username'];
+        else {
+            $context = GeneralUtility::makeInstance(Context::class);
+        
+            if ($context->getPropertyFromAspect('frontend.user', 'isLoggedIn')) {
+                $userId = $context->getPropertyFromAspect('frontend.user', 'id');
+        
+                // Fetch full record from fe_users
+                $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('fe_users');
+        
+                $feUser = $queryBuilder->select('*')->from('fe_users')->where(
+                        $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($userId, Connection::PARAM_INT)))->executeQuery()->fetchAssociative(); // array
+        
+                if (empty($feUser)) {
+                    $responseFactory = GeneralUtility::makeInstance(\Psr\Http\Message\ResponseFactoryInterface::class);
+                    $response = $responseFactory->createResponse()->withAddedHeader('location', $issuer);
+                    return $response;
+                }
+        
+                $user = $feUser; // directly assign array
+            } else {
+                echo "No frontend user is logged in.";
+            }
+        }
+        
+        $email = $user['email'] ?? '';
+        $username = $user['username'] ?? '';
         $attribute = array();
         $temp = explode(' ', $username);
-        $attribute["FirstName"] = $GLOBALS['TSFE']->fe_user->user['first_name'];
-        $attribute["LastName"] = $GLOBALS['TSFE']->fe_user->user['last_name'];
-        $attribute["Group ID"] = $GLOBALS['TSFE']->fe_user->user['usergroup'];
-        $attribute["Address"] = $GLOBALS['TSFE']->fe_user->user['address'];
-        $attribute["Fax"] = $GLOBALS['TSFE']->fe_user->user['fax'];
-        $attribute["Telephone"] = $GLOBALS['TSFE']->fe_user->user['telephone'];
-        $attribute["Zip"] = $GLOBALS['TSFE']->fe_user->user['zip'];
-        $attribute["City"] = $GLOBALS['TSFE']->fe_user->user['city'];
-        $attribute["Country"] = $GLOBALS['TSFE']->fe_user->user['country'];
+        $attribute["FirstName"] = $user['first_name'] ?? '';
+        $attribute["LastName"] = $user['last_name'] ?? '';
+        $attribute["Group ID"] = $user['usergroup'] ?? '';
+        $attribute["Address"] = $user['address'] ?? '';
+        $attribute["Fax"] = $user['fax'] ?? '';
+        $attribute["Telephone"] = $user['telephone'] ?? '';
+        $attribute["Zip"] = $user['zip'] ?? '';
+        $attribute["City"] = $user['city'] ?? '';
+        $attribute["Country"] = $user['country'] ?? '';
+
+        if ($this->saml_sp_object === null) {
+            // Handle case where no SP object is available
+            echo("No SP configuration found. Please contact your administrator!");
+            exit;
+        }
+        
         $spArray = json_decode($this->saml_sp_object);
         $name_id_attr = $spArray->nameid_format;
         $acs_url = $spArray->acs_url;
@@ -178,35 +281,39 @@ class FesamlController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionControlle
         $inResponseTo = "";
 
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('sso_users');
-        $id = $queryBuilder->select('id')->from('sso_users')->where($queryBuilder->expr()->eq('username', $queryBuilder->createNamedParameter($username, \PDO::PARAM_STR)))->execute()->fetch();
+        $id = $this->fetchData(
+            $this->executeQuery($queryBuilder->select('id')->from('sso_users')->where($queryBuilder->expr()->eq('username', $queryBuilder->createNamedParameter($username, ))), true),
+            'fetch'
+        );
 
         if(!$id)
         {
             $token = Constants::ENCRYPT_TOKEN;
             $uLimit = AESEncryption::decrypt_data(Utilities::fetch_cust('user_limit'), $token);
             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('sso_users');
-            $added_users = $queryBuilder
-            ->count('id')
-            ->from('sso_users')
-            ->execute()
-            ->fetchOne();
+            $added_users = $this->fetchData(
+                $this->executeQuery($queryBuilder
+                    ->count('id')
+                    ->from('sso_users'), true),
+                'fetchOne'
+            );
             if($added_users < $uLimit)
             {
                 $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('sso_users');
-                $queryBuilder->insert('sso_users')->values(['username' => $username])->execute();
+                $this->executeQuery($queryBuilder->insert('sso_users')->values(['username' => $username]), false);
             }
             else
             {
                 $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('saml');
-                $email_sent = Utilities::fetch_cust(Constants::EMAIL_SENT);
-                if($email_sent < 10)
-                {
-                    $site = GeneralUtility::getIndpEnv('TYPO3_REQUEST_HOST');
-                    $customer = new CustomerSaml();
-                    $customer->submit_to_magento_team_autocreate_limit_exceeded($site, $typo3Version);
-                    $queryBuilder = Utilities::update_cust(Constants::EMAIL_SENT,$email_sent+1);
-                }
-                echo("User Limit Exceeded! Please contact your administrator.");exit;
+                $customer = new CustomerSaml();
+                $timestamp = Utilities::fetch_cust(Constants::TIMESTAMP);
+                $data = [
+                    'timeStamp' => $timestamp,
+                    'autoCreateLimit' => 'Yes'
+                ];
+                $customer->syncPluginMetrics($data);
+                echo "User limit exceeded!!! Please upgrade to the Premium Plan in order to continue the services";
+                exit;
             }
         }
         if (isset($_REQUEST['RelayState'])) {
@@ -235,9 +342,22 @@ class FesamlController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionControlle
      */
     public function controlAction($sp_name)
     {
+        if ($sp_name === null) {
+            // Handle case where sp_name is not provided
+            $this->saml_sp_object = null;
+            $this->saml_idp_object = null;
+            return;
+        }
+        
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('saml');
-        $this->saml_sp_object = $queryBuilder->select(Constants::SAML_SPOBJECT)->from('saml')->where($queryBuilder->expr()->eq('sp_name', $queryBuilder->createNamedParameter($sp_name, \PDO::PARAM_STR)))->execute()->fetch();
-        $this->saml_idp_object = $queryBuilder->select(Constants::SAML_IDPOBJECT)->from('saml')->where($queryBuilder->expr()->eq('sp_name', $queryBuilder->createNamedParameter($sp_name, \PDO::PARAM_STR)))->execute()->fetch();
+        $this->saml_sp_object = $this->fetchData(
+            $this->executeQuery($queryBuilder->select(Constants::SAML_SPOBJECT)->from('saml')->where($queryBuilder->expr()->eq('sp_name', $queryBuilder->createNamedParameter($sp_name, ))), true),
+            'fetch'
+        );
+        $this->saml_idp_object = $this->fetchData(
+            $this->executeQuery($queryBuilder->select(Constants::SAML_IDPOBJECT)->from('saml')->where($queryBuilder->expr()->eq('sp_name', $queryBuilder->createNamedParameter($sp_name, ))), true),
+            'fetch'
+        );
         $this->saml_sp_object = is_array($this->saml_sp_object) ? $this->saml_sp_object[Constants::SAML_SPOBJECT] : $this->saml_sp_object;
         $this->saml_idp_object = is_array($this->saml_idp_object) ? $this->saml_idp_object[Constants::SAML_IDPOBJECT] : $this->saml_idp_object;
 

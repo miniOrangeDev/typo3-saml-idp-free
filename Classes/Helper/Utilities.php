@@ -3,20 +3,59 @@
 namespace Miniorange\Idp\Helper;
 
 use Exception;
-use PDO;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Messaging\Renderer\ListRenderer;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
+use TYPO3\CMS\Core\Utility\VersionNumberUtility;
+use TYPO3\CMS\Core\Database\Connection;
 
 const SEP = DIRECTORY_SEPARATOR;
 
 class Utilities
 {
+    /**
+     * Helper method to execute database queries with TYPO3 v12/v13 compatibility
+     */
+    private static function executeQuery($queryBuilder, $isSelect = true)
+    {
+        // Check if the new methods exist (TYPO3 v13+)
+        if (method_exists($queryBuilder, 'executeQuery') && method_exists($queryBuilder, 'executeStatement')) {
+            return $isSelect ? $queryBuilder->executeQuery() : $queryBuilder->executeStatement();
+        } else {
+            // TYPO3 v12 and earlier - use legacy methods
+            return $queryBuilder->execute();
+        }
+    }
+
+    /**
+     * Helper method to fetch data with TYPO3 v12/v13 compatibility
+     */
+    private static function fetchData($result, $method = 'fetch')
+    {
+        // Check if the new methods exist (TYPO3 v13+)
+        if (method_exists($result, 'fetchAssociative') && method_exists($result, 'fetchAllAssociative')) {
+            switch ($method) {
+                case 'fetch':
+                    return $result->fetchAssociative();
+                case 'fetchAll':
+                    return $result->fetchAllAssociative();
+                case 'fetchOne':
+                    return $result->fetchOne();
+                default:
+                    return $result->fetchAssociative();
+            }
+        } else {
+            // TYPO3 v12 and earlier - use legacy methods
+            return $result->$method();
+        }
+    }
+
     /**
      * This function checks if a value is set or
      * empty. Returns true if value is empty
@@ -74,9 +113,12 @@ class Utilities
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($table);
         // Remove all restrictions but add DeletedRestriction again
         $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-        $user = $queryBuilder->select('*')->from($table)->where(
-            $queryBuilder->expr()->eq('username', $queryBuilder->createNamedParameter($username))
-        )->execute()->fetch();
+        $user = self::fetchData(
+            self::executeQuery($queryBuilder->select('*')->from($table)->where(
+                $queryBuilder->expr()->eq('username', $queryBuilder->createNamedParameter($username))
+            ), true),
+            'fetch'
+        );
 
         if (null == $user) {
             self::log_php_error("user not found: ");
@@ -100,7 +142,10 @@ class Utilities
     public static function fetchFromTable($col, $table, $sp_name)
     {
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($table);
-        $variable = $queryBuilder->select($col)->from($table)->where($queryBuilder->expr()->eq('sp_name', $queryBuilder->createNamedParameter($sp_name, \PDO::PARAM_STR)))->execute()->fetch();
+        $variable = self::fetchData(
+            self::executeQuery($queryBuilder->select($col)->from($table)->where($queryBuilder->expr()->eq('sp_name', $queryBuilder->createNamedParameter($sp_name, ))), true),
+            'fetch'
+        );
         return is_array($variable) ? $variable[$col] : $variable;
     }
 
@@ -108,20 +153,20 @@ class Utilities
     public static function updateTable($col, $val, $table)
     {
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($table);
-        $queryBuilder->update($table)
-            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter(1, PDO::PARAM_INT)))->set($col, $val)
-            ->execute();
+        self::executeQuery($queryBuilder->update($table)
+            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter(1, )))->set($col, $val), false);
     }
 
 //------------Fetch UID from Groups
     public static function fetchUidFromGroupName($name, $table = "fe_groups")
     {
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($table);
-        $rows = $queryBuilder->select('uid')
-            ->from($table)
-            ->where($queryBuilder->expr()->eq('title', $queryBuilder->createNamedParameter($name, \PDO::PARAM_STR)))
-            ->execute()
-            ->fetch();
+        $rows = self::fetchData(
+            self::executeQuery($queryBuilder->select('uid')
+                ->from($table)
+                ->where($queryBuilder->expr()->eq('title', $queryBuilder->createNamedParameter($name, ))), true),
+            'fetch'
+        );
         return $rows;
     }
 
@@ -132,7 +177,7 @@ class Utilities
             self::insertValue();
         }
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('customer');
-        $queryBuilder->update('customer')->where($queryBuilder->expr()->eq('id', $queryBuilder->createNamedParameter(1, PDO::PARAM_INT)))->set($column, $value)->execute();
+        self::executeQuery($queryBuilder->update('customer')->where($queryBuilder->expr()->eq('id', $queryBuilder->createNamedParameter(1, )))->set($column, $value), false);
     }
 
 //---------INSERT CUSTOMER DETAILS--------------
@@ -140,14 +185,17 @@ class Utilities
     public static function fetch_cust($col)
     {
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('customer');
-        $variable = $queryBuilder->select($col)->from('customer')->where($queryBuilder->expr()->eq('id', $queryBuilder->createNamedParameter(1, PDO::PARAM_INT)))->execute()->fetch();
+        $variable = self::fetchData(
+            self::executeQuery($queryBuilder->select($col)->from('customer')->where($queryBuilder->expr()->eq('id', $queryBuilder->createNamedParameter(1, ))), true),
+            'fetch'
+        );
         return is_array($variable) ? $variable[$col] : $variable;
     }
 
     public static function insertValue()
     {
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('customer');
-        $affectedRows = $queryBuilder->insert('customer')->values(['id' => '1'])->execute();
+        self::executeQuery($queryBuilder->insert('customer')->values(['id' => '1']), false);
     }
 
     /**
@@ -225,14 +273,14 @@ class Utilities
 
     public static function showErrorFlashMessage($message, $header = "ERROR")
     {
-        $message = GeneralUtility::makeInstance(FlashMessage::class, $message, $header, FlashMessage::ERROR);
+        $message = GeneralUtility::makeInstance(FlashMessage::class, $message, $header, ContextualFeedbackSeverity::ERROR);
         $out = GeneralUtility::makeInstance(ListRenderer ::class)->render([$message]);
         echo $out;
     }
 
     public static function showSuccessFlashMessage($message, $header = "OK")
     {
-        $message = GeneralUtility::makeInstance(FlashMessage::class, $message, $header, FlashMessage::OK);
+        $message = GeneralUtility::makeInstance(FlashMessage::class, $message, $header, ContextualFeedbackSeverity::OK);
         error_log(print_r($message, true) . "\n\n");
         $messageArray = array($message);
         $out = GeneralUtility::makeInstance(ListRenderer ::class)->render($messageArray);

@@ -133,4 +133,11 @@ EfCUl6tQwLsTOgUKXgcp1+L/AQ==
 
     const DEFAULT_CUSTOMER_KEY     = "16555";
     const DEFAULT_API_KEY         = "fFd2XcvTGDemZvbw1bcUesNJWEqKbbUq";
+
+    const TIMESTAMP = 'timestamp';
+    const PLUGIN_NAME = 'Typo3 IDP Free';
+    const EXTENSION_KEY = 'idp';
+    const PLUGIN_METRICS_API = 'https://magento.shanekatear.in/plugin-portal/api/tracking';
+    const PLUGIN_VERSION = 'v1.0.5';
+
 }

@@ -12,19 +12,19 @@
 
 $EM_CONF[$_EXTKEY] = [
     'title' => 'SAML IDP 2.0 Single Sign On (SSO) - Login using Typo3 credentials',
-    'description' => 'Typo3 as IdP Single Sign On (SSO) extension allows users residing in your Typo3 site to login to your SAML 2.0 Compliant Service Provider. Login into your websites (Service Providers) using Typo3 credentials. This extension enables your Typo3 site to operate as a SAML 2.0 Identity Provider, which can be set to build trust between the Typo3 site and multiple SAML 2.0 compliant Service Providers in order to securely authenticate users who use the Typo3 site.',
+    'description' => 'TYPO3 as IdP (Identity Provider) Single Sign On - SSO extension allows users residing in your TYPO3 site to login to your SAML 2.0 Compliant Service Provider. Login into your websites & applications (Service Providers) using TYPO3 credentials. This extension enables your TYPO3 site to operate as a SAML 2.0 Identity Provider, which can be set to build trust between the TYPO3 site and multiple SAML 2.0 compliant Service Providers giving your users a seamless way to log into TYPO3 site. This extension is fully compatible with TYPO3 v13.',
     'author' => 'miniOrange',
-    'state' => 'stable',
-    'shy' => '',
-    'icon' => 'EXT:idp/Resources/Public/Icons/miniorange.svg',
-    'version' => '1.0.4',
     'constraints' => [
         'depends' => [
-            'typo3' => '8.7.0-12.5.13',
+            'typo3' => '8.7.30-13.4.99',
         ],
         'conflicts' => [],
         'suggests' => [],
     ],
+    'shy' => '',
+    'icon' => 'EXT:idp/Resources/Public/Icons/Extension.svg',
+    'version' => '1.0.5',
+    'state' => 'stable',
     'autoload' => [
         'psr-4' => [
             'Miniorange\\Idp\\' => 'Classes/',

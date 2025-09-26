@@ -23,7 +23,7 @@ class MiniOrangeAuthnRequest
     private $issueInstant;
     private $requestID;
 
-    public function __construct(DOMElement $xml = null)
+    public function __construct(?DOMElement $xml = null)
     {
 
         $this->nameIdPolicy = array();

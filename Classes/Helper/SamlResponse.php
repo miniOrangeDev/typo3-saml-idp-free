@@ -25,7 +25,7 @@ class SamlResponse
      * @param DOMElement|NULL $xml
      * @throws \Exception
      */
-    public function __construct(DOMElement $xml = NULL)
+    public function __construct(?DOMElement $xml = NULL)
     {
         $this->assertions = array();
         $this->certificates = array();
