@@ -6,6 +6,7 @@ use Miniorange\Idp\Helper\Constants;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Messaging\Renderer\ListRenderer;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use Miniorange\Idp\Helper\Utilities;
 
@@ -75,7 +76,7 @@ class CustomerSaml
         $content = curl_exec($ch);
 
         if (curl_errno($ch)) {
-            $message = GeneralUtility::makeInstance(FlashMessage::class, 'CURL ERROR', 'Error', FlashMessage::ERROR, true);
+            $message = GeneralUtility::makeInstance(FlashMessage::class, 'CURL ERROR', 'Error', ContextualFeedbackSeverity::ERROR, true);
             $out = GeneralUtility::makeInstance(ListRenderer ::class)->render();
             echo $out;
             return;
@@ -237,47 +238,6 @@ class CustomerSaml
         return $relay_state;
     }
 
-    function check_customer_ln($customerKey, $apiKey)
-    {
-
-        $url = Constants::HOSTNAME . '/moas/rest/customer/license';
-        $ch = curl_init($url);
-
-        $currentTimeInMillis = round(microtime(true) * 1000);
-        $stringToHash = $customerKey . number_format($currentTimeInMillis, 0, '', '') . $apiKey;
-        $hashValue = hash("sha512", $stringToHash);
-        $customerKeyHeader = "Customer-Key: " . $customerKey;
-        $timestampHeader = "Timestamp: " . $currentTimeInMillis;
-        $authorizationHeader = "Authorization: " . $hashValue;
-        $fields = '';
-        $fields = array(
-            'customerId' => $customerKey,
-            'applicationName' => Constants::APPLICATION_NAME
-        );
-        $field_string = json_encode($fields);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($ch, CURLOPT_ENCODING, "");
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_AUTOREFERER, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);  # required for https urls
-        curl_setopt($ch, CURLOPT_MAXREDIRS, 10);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array("Content-Type: application/json", $customerKeyHeader, $timestampHeader, $authorizationHeader));
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $field_string);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
-
-        $content = curl_exec($ch);
-        error_log("check customer ln :" . print_r($content, true));
-
-        if (curl_errno($ch))
-            return false;
-        curl_close($ch);
-
-        return $content;
-    }
-
     function updateStatus($key, $apikey, $code)
     {
         $url = Constants::HOSTNAME . '/moas/api/backupcode/updatestatus';
@@ -341,94 +301,11 @@ class CustomerSaml
         return $response;
     }
 
-    //This function is used to notify the support team that the plugin has been installed successfully
-    function submit_to_magento_team(
-        $q_email,
-        $sub,
-        $values,
-        $typo3Version
-    ) {
-        $url =  Constants::HOSTNAME . "/moas/api/notify/send";
-        $customerKey =  Constants::DEFAULT_CUSTOMER_KEY;
-        $apiKey =  Constants::DEFAULT_API_KEY;
-
-        $fields1 = array(
-            'customerKey' => $customerKey,
-            'sendEmail' => true,
-            'email' => array(
-                'customerKey'   => $customerKey,
-                'fromEmail'     => "nitesh.pamnani@xecurify.com",
-                'bccEmail'      => "rutuja.sonawane@xecurify.com",
-                'fromName'      => 'miniOrange',
-                'toEmail'       => "nitesh.pamnani@xecurify.com",
-                'toName'        => "Nitesh",
-                'subject'       => "Typo3 SAML IDP free Plugin $sub : $q_email",
-                'content'       => " Admin UserName = $q_email, Site= $values[0], Typo3 Version = $typo3Version"
-            ),
-        );
-
-        $fields2 = array(
-            'customerKey' => $customerKey,
-            'sendEmail' => true,
-            'email' => array(
-                'customerKey'   => $customerKey,
-                'fromEmail'     => "rushikesh.nikam@xecurify.com",
-                'bccEmail'      => "raj@xecurify.com",
-                'fromName'      => 'miniOrange',
-                'toEmail'       => "rushikesh.nikam@xecurify.com",
-                'toName'        => "Rushikesh",
-                'subject'       => "Typo3 SAML IDP free Plugin $sub : $q_email",
-                'content'       => " Admin Email = $q_email, Site= $values[0], Typo3 Version = $typo3Version"
-            ),
-        );
-        $field_string1 = json_encode($fields1);
-        $field_string2 = json_encode($fields2);
-        $authHeader = self::createAuthHeader($customerKey, $apiKey);
-        $response1 = self::callAPI($url, $fields1, $authHeader);
-        $response2 = self::callAPI($url, $fields2, $authHeader);
-        return true;
-    }
-
-    //This function is used to notify that the auto create user imit has been exceeded
-    function submit_to_magento_team_autocreate_limit_exceeded($site, $typo3Version) {
-        $url =  Constants::HOSTNAME . "/moas/api/notify/send";
-        $customerKey =  Constants::DEFAULT_CUSTOMER_KEY;
-        $apiKey =  Constants::DEFAULT_API_KEY;
-
-        $fields1 = array(
-            'customerKey' => $customerKey,
-            'sendEmail' => true,
-            'email' => array(
-                'customerKey'   => $customerKey,
-                'fromEmail'     => "nitesh.pamnani@xecurify.com",
-                'bccEmail'      => "rutuja.sonawane@xecurify.com",
-                'fromName'      => 'miniOrange',
-                'toEmail'       => "nitesh.pamnani@xecurify.com",
-                'toName'        => "Nitesh",
-                'subject'       => "Typo3 SAML IDP free Plugin SSO USER LIMIT EXEEDED",
-                'content'       => "Site: $site, Typo3 Version = $typo3Version"
-            ),
-        );
-
-        $fields2 = array(
-            'customerKey' => $customerKey,
-            'sendEmail' => true,
-            'email' => array(
-                'customerKey'   => $customerKey,
-                'fromEmail'     => "rushikesh.nikam@xecurify.com",
-                'bccEmail'      => "raj@xecurify.com",
-                'fromName'      => 'miniOrange',
-                'toEmail'       => "rushikesh.nikam@xecurify.com",
-                'toName'        => "Rushikesh",
-                'subject'       => "Typo3 SAML IDP free Plugin SSO USER LIMIT EXEEDED",
-                'content'       => "Site: $site, Typo3 Version = $typo3Version"
-            ),
-        );
-        $field_string1 = json_encode($fields1);
-        $field_string2 = json_encode($fields2);
-        $authHeader = self::createAuthHeader($customerKey, $apiKey);
-        $response1 = self::callAPI($url, $fields1, $authHeader);
-        $response2 = self::callAPI($url, $fields2, $authHeader);
+    // This function is used to sync the plugin metrics
+    public function syncPluginMetrics($data)
+    {
+        $apiUrl = Constants::PLUGIN_METRICS_API;
+        $this->callAPI($apiUrl, $data);
         return true;
     }
 

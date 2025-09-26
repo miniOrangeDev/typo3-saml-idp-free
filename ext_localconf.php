@@ -1,5 +1,7 @@
 <?php
 
+defined('TYPO3') or die();
+
 use TYPO3\CMS\Core\Imaging\IconProvider\BitmapIconProvider;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -15,17 +17,18 @@ call_user_func(
         $pluginNameBesaml = 'Besaml';
 
         $version = new Typo3Version();
-        if (version_compare($version, '11.0.0', '>=')) {
-            $extensionName = 'Idp';
+        if (version_compare($version, '10.0.0', '>=')) {
+            $extensionName = 'idp';
             $cache_actions_fesaml = [Miniorange\Idp\Controller\FesamlController::class => 'request'];
             $non_cache_actions_fesaml = [Miniorange\Idp\Controller\FesamlController::class => 'control'];
         } else {
             $extensionName = 'Miniorange.Idp';
+            $cache_actions_besaml = ['Besaml' => 'request'];
             $cache_actions_fesaml = ['Fesaml' => 'request'];
             $non_cache_actions_fesaml = ['Fesaml' => 'control'];
         }
 
-        ExtensionUtility::configurePlugin(
+        \TYPO3\CMS\Extbase\Utility\ExtensionUtility::configurePlugin(
             $extensionName,
             $pluginNameBesaml,
             [
@@ -33,7 +36,7 @@ call_user_func(
             ]
         );
 
-        ExtensionUtility::configurePlugin(
+        \TYPO3\CMS\Extbase\Utility\ExtensionUtility::configurePlugin(
             $extensionName,
             $pluginNameFesaml,
             $cache_actions_fesaml,
@@ -42,35 +45,33 @@ call_user_func(
         );
 
         // wizards
-        ExtensionManagementUtility::addPageTSConfig(
-            'mod {
-            wizards.newContentElement.wizardItems.plugins {
+        \TYPO3\CMS\Core\Utility\ExtensionManagementUtility::addPageTSConfig(
+    "mod.wizards.newContentElement.wizardItems.plugins {
                 elements {
-                    Fesamlkey {
-                        iconIdentifier = idp-plugin-fesaml
-                        title = LLL:EXT:idp/Resources/Private/Language/locallang_db.xlf:tx_Idp_fesaml.name
-                        description = LLL:EXT:idp/Resources/Private/Language/locallang_db.xlf:tx_Idp_fesaml.description
+            fesaml {
+                iconIdentifier = idp-plugin-bekey
+                title = Fesaml
+                description = For Sending Request
                         tt_content_defValues {
                             CType = list
-                            list_type = Fesaml
+                    list_type = {$extensionName}_fesaml
                         }
                     }
                 }
                 show = *
-            }
-       }'
+    }"
         );
 
         $iconRegistry = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Imaging\IconRegistry::class);
         $iconRegistry->registerIcon(
             'idp-plugin-fesaml',
             \TYPO3\CMS\Core\Imaging\IconProvider\BitmapIconProvider::class,
-            ['source' => 'EXT:idp/Resources/Public/Icons/miniorange.png']
+            ['source' => 'EXT:idp/Resources/Public/Icons/Extension.png']
         );
 
         $iconRegistry->registerIcon(
             'idp-plugin-bekey',
-            BitmapIconProvider::class,
+            \TYPO3\CMS\Core\Imaging\IconProvider\BitmapIconProvider::class,
             ['source' => 'EXT:idp/Resources/Public/Icons/miniorange.png']
         );
     }

@@ -1,64 +1,41 @@
-<html data-namespace-typo3-fluid="true" xmlns:f="https://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers">
-<!DOCTYPE html>
-<html lang="en">
-<head>
+{namespace f=TYPO3\CMS\Fluid\ViewHelpers}
 
-    <meta charset="utf-8">
-    <meta content="IE=edge" http-equiv="X-UA-Compatible">
-    <meta content="width=device-width, initial-scale=1" name="viewport">
+<f:layout name="Default"/>
 
-    <f:comment><!--Main CSS --></f:comment>
-    <link href="{extPath}Helper/resources/css/main.css" rel="stylesheet" type="text/css">
+<f:section name="title">
+    SAML Single Sign-On (SSO) | Backend & Frontend
+</f:section>
+<f:section name="head">  
+</f:section>
+<f:section name="content">
 
-    <!-- Font-icon css-->
-    <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet"
-          type="text/css">
-    <link href="//netdna.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css" id="bootstrap-css" rel="stylesheet">
-    <script src="//netdna.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
-    <script src="//code.jquery.com/jquery-1.11.1.min.js"></script>
-
-    <f:comment><!-- load js file --></f:comment>
-    <script src="{extPath}Helper/resources/js/backend.js" type="text/javascript"></script>
-
-    <meta content="width=device-width, initial-scale=1" name="viewport">
-
-
-</head>
-
-<body class="app sidebar-mini rtl">
-
-<div class="app-sidebar__overlay" data-toggle="sidebar"></div>
+    <div class="app sidebar-mini rtl">
 
 <div class="tab">
-    <button class="tablinks button" id="Account_Tab" onclick="removeFlashMessage(); openTab('Account')">Account</button>
-    <button class="tablinks button" id="providers_Tab" onclick="removeFlashMessage(); openTab('Providers')">Providers
-    </button>
-    <button class="tablinks button" id="Identity_Provider_Tab"
-            onclick="removeFlashMessage(); openTab('Identity_Provider')">SAML Settings
-    </button>
-    <button class="tablinks button" id="upgrade_tab_btn" onclick="removeFlashMessage(); openTab('Upgrade')">Upgrade</button>
+        <f:form.button class="tablinks button" id="providers_tab_btn">Providers</f:form.button>
+        <f:form.button class="tablinks button" id="saml_tab_btn">SAML Settings</f:form.button>
+        <f:form.button class="tablinks button" id="upgrade_tab_btn">Upgrade</f:form.button>
 </div>
 
 <input hidden id="taby" name="taby" value="{tab}">
 
 <div id="topContainer">
     <!--Left Container-->
-    <div id="leftContainer">
+        <div class="container" id="leftContainer">
 
         <!-- PROVIDERS TAB -->
-        <div class="tabcontent" id="Providers">
+            <div class="tabcontent tabcontent-main" id="Providers">
             <form id="providers_form" method="post" name="providers">
                 <input name="option" type="hidden" value="mo_saml_providers"/>
 
-                <div class="panel_toggle">
                     <h3><strong>Manage Providers</strong></h3>
-                </div>
                 <hr>
+                    <div class="tile">
                 <div class="tile-footer">
                     <form action="" id="idp-add-form" method="post" name="add_provider">
                         <input name="option" type="hidden" value="add">
-                        <button class="btn btn-primary btn-cstm" id="add_provider" name="add_provider"
-                                onClick="add_provider();" style="margin-right:10px;"
+                                <button class="btn btn-primary" id="add_provider" name="add_provider"
+                                        style="margin-right:10px;"
                                 type="submit" >Add Provider
                         </button>
                     </form>
@@ -90,11 +67,10 @@
                                                     <input id="sp_name" name="sp_name" type="hidden"
                                                            value="{row.sp_name}">
                                                     <input name="option" type="hidden" value="delete">
-                                                    <button class="btn btn-primary btn-cstm" id="delete" name="delete"
-                                                            onClick="jQuery('#idp-delete-form').submit();"
-                                                            type="submit"
-                                                            >Delete
-                                                    </button>
+                                                            <button class="btn btn-primary" id="delete" name="delete"
+                                                                    type="submit"
+                                                                    >Delete
+                                                            </button>
                                                 </form>
                                             </td>
 
@@ -103,11 +79,10 @@
                                                       name="edit_provider">
                                                     <input name="sp_name" type="hidden" value="{row.sp_name}">
                                                     <input name="option" type="hidden" value="edit">
-                                                    <button class="btn btn-primary btn-cstm" id="edit" name="edit"
-                                                            onClick="jQuery('#idp-edit-form').submit();"
-                                                            type="submit"
-                                                            >Edit
-                                                    </button>
+                                                            <button class="btn btn-primary" id="edit" name="edit"
+                                                                    type="submit"
+                                                                    >Edit
+                                                            </button>
                                                 </form>
                                             </td>
 
@@ -118,12 +93,13 @@
                         </f:for>
                     </table>
                     </tbody>
+                        </div>
                 </div>
             </form>
         </div>
 
         <!--   IDENTITY PROVIDER TAB-->
-        <div class="tabcontent" id="Identity_Provider">
+            <div class="tabcontent tabcontent-main" id="Identity_Provider">
             <!--   IDENTITY PROVIDER SETTINGS    -->
 
             <h3><strong>Identity Provider Metadata</strong> <a href="https://plugins.miniorange.com/typo3-saml-idp-setup-guides"
@@ -190,8 +166,8 @@
 
                     &nbsp
                     <div class="tile-footer">
-                        <button class="btn btn-primary btn-cstm" id="submit_saml_form" name="submit_saml_form" onClick="idp_metadata_save()"
-                                style="margin-right:10px;" type="submit" >Save
+                        <button class="btn btn-primary" id="submit_saml_form" name="submit_saml_form"
+                                style="margin-right:10px;" type="button" >Save
                         </button>
                     </div>
                     <hr>
@@ -202,7 +178,7 @@
                            href="{conf_idp.saml_login_url}?option=mosaml_metadata&sp_name={conf_idp.sp_name}"
                            id="metadata_url" target="_blank"> Show Metadata &nbsp</a>
                         <div class="tooltip_meta" {xml_download}>
-                            <a class="btn btn-primary btn-cstm" id="copy" onClick="copyURL()" onmouseout="outFunc()"
+                            <a class="btn btn-primary" id="copy"
                                style="text-decoration:none" style="margin-right:40px;" target="_blank"
                                {idp_metadata_enable} {idp_metadata_enable} ><span
                                     class="tooltiptext" id="myTooltip">Copy to clipboard</span>Copy URL</a>
@@ -213,7 +189,7 @@
                             <input id="metadata_download" name="option" type="hidden" value="" {xml_download}>
                             <label>You can download the metadata XML from here : </label>
                             <a style="text-decoration:none" target="_blank">
-                                <button class="btn btn-primary btn-cstm" id="download_metadata" name="option" onClick=set_value()
+                                <button class="btn btn-primary" id="download_metadata" name="option"
                                         style="margin-right:40px;" type="button" {idp_metadata_enable}
                                         >Download
                                 </button>
@@ -288,9 +264,17 @@
 
                     </div>
 
+                    <div class="form-group">
+                        <input class="form-control" id="response" name="response" type="hidden" value="{conf_sp.acs_url}">
+                    </div>
+
+                    <div class="form-group">
+                        <input class="form-control" id="site_base_url" name="site_base_url" type="hidden" value="{conf_sp.sp_entity_id}">
+                    </div>
+
                     <div class="tile-footer form-group">
-                        <button class="btn btn-primary btn-cstm" id="sp_setting_form" name="sp_settings_form" onClick="save_sp_data()"
-                                style="margin-right:40px;" type="submit"
+                        <button class="btn btn-primary" id="sp_setting_form" name="sp_settings_form"
+                                style="margin-right:40px;" type="button"
                                 {idp_metadata_enable} >Save
                         </button>
 
@@ -300,117 +284,25 @@
             </div>
         </div>
 
-        <!--   ACCOUNT TAB-->
-        <div class="tabcontent" id="Account" style="margin-left: 20px">
-
-            <!--    IF USER NOT LOGGED IN -->
-            <f:if condition="{0: status} == {0: 'not_logged'}">
-                <form id="account_form" method="post" name="account">
-                    <input name="option" type="hidden" value="mo_saml_verify_customer"/>
-
-                    <div class="panel_toggle" id="toggle1">
-                        <h3>Login with miniOrange</h3>
-                    </div>
-                    <hr>
-                    <div class="" id="panel1" style="height: 70% ; ">
-                        <p style=""><b>Please enter your miniOrange email and password.<br/>
-                            <a href="https://login.xecurify.com/moas/idp/resetpassword" target="_blank">Click
-                                here if you forgot your password?</a></b>
-                        </p>
-
-                        <br>
-                        <div class="col-lg-8 tile" style="height: fit-content">
-
-                            <label color="#FF0000">Email:</label>
-                            <input class="form-control" name="email" placeholder="person@example.com"
-                                   required type="email"
-                                   value=" "/>
-                            <br>
-                            <label color="#FF0000">Password:</label>
-                            <input class="form-control" minlength="6" name="password"
-                                   pattern="^[(\w)*(!@#$.%^&*-_)*]+$" placeholder="Enter your password"
-                                   required title="Minimum 6 characters should be present. Maximum 15 characters should be present. Only following symbols (!@#.$%^&*) should be present."
-                                   type="password"/>
-                            <br>
-                            <button class="btn btn-primary btn-cstm" id="submit" name="submit" onClick="jQuery('#account_form').submit();"
-                                    type="submit">Login
-                            </button>
-                        </div>
-                    </div>
-                </form>
-            </f:if>
-
-            <!--    IF  USER LOGGED AND VERIFIED-->
-            <f:if condition="{0: status} == {0: 'logged'}">
-                <div class="panel_toggle" id="toggle3">
-                    <h3><strong>Profile</strong></h3>
-                </div>
-                <hr>
-                <div class="tile">
-
-                    <!--    LICENSE VALIDATED-->
-                    <table class="profileTable">
-                        <tr>
-                            <td><strong>Email : </strong></td>
-                            <td>{email}</td>
-                        </tr>
-                        &nbsp
-                        <tr>
-                            <td><strong>ID : </strong></td>
-                            <td>{key}</td>
-                        </tr>
-                        &nbsp
-                        <tr>
-                            <td><strong>Token : </strong></td>
-                            <td>{token}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Api Key : </strong></td>
-                            <td>{api_key}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Number of Users remaining : </strong></td>
-                            <td>{users_remaining}</td>
-                        </tr>
-                    </table>
-
-                    &nbsp
-
-                    <!--     CHANGE ACCOUNT -->
-                    <form action="" id="log_out_form" method="post" name="log_out_form">
-                        <input name="option" type="hidden" value="logout">
-
-                        <input class="btn btn-primary btn-cstm"
-                               name="submit"
-                               onclick="jQuery('#log_out_form').submit();"
-                               type="submit" value="Log out"/>
-                    </form>
-
-                </div>
-
-            </f:if>
-
         </div>
 
-    </div>
+        <div class="tabcontent tabcontent-main" id="Upgrade">
 
-    <f:comment>  <!--   GET PREMIUM TAB--></f:comment>
-
-    <div class="tabcontent" id="Upgrade">
-
+            <h3><strong>Upgrade to Premium</strong></h3>
+            <hr>
+            <div class="tile">
         <section class="pricing py-5">
 
             <div class="container">
 
                 <div class="row">
-                    <br>
 
                     <!-- Pro Tier -->
                     <div class="columns">
 
                         <ul class="price">
 
-                            <li class="header"><strong>Free (v1.0.4)</strong></li>
+                            <li class="header"><strong>Free (v1.0.5)</strong></li>
 
                             <li>&#10004Authentications (Upto 10 users)</li>
 
@@ -471,27 +363,21 @@
 
             </div>
 
-
         </section>
-
+            </div>
     </div>
 
-    <!-- Right Container - SUPPORT TAB-->
     <div id="rightContainer">
-        <div class="tabcontent" id="Support">
+
+            <div class="tabcontent tabcontent-support" id="Support">
             <h3><strong>Support</strong></h3>
             <hr>
-            &nbsp;
-            <div class="row">
-                <div class="col-md-12">
                     <div class="tile">
-                        <div class="row ">
-                            <div class="col-lg-10">
                                 <form action="" id="support_form" method="post">
                                     <p><b>Need any help? We can help you in configuring the connector with your Identity
                                         Provider. Just send us a query and we will get back to you soon.</b></p>
                                     <input name="option" type="hidden" value="mo_saml_contact_us_query_option"/>
-                                    &nbsp;
+                        
                                     <div class="form-group">
                                         <input class="form-control" name="mo_saml_contact_us_email" placeholder="Enter your email"
                                                type="text" value="">
@@ -507,470 +393,13 @@
                                                   rows="6"></textarea>
                                     </div>
                                     <div class="tile-footer">
-                                        <button class="btn btn-primary btn-cstm" name="submit" type="submit">Submit</button>
-                                    </div>
-                                </form>
-                            </div>
+                            <button class="btn btn-primary" name="submit" type="submit">Submit</button>
                         </div>
-                    </div>
+                    </form>
                 </div>
             </div>
         </div>
+
     </div>
 
-</div>
-
-<script>
-
-    function setMetadata() {
-        jQuery('#idp_metadata_save').attr('value', 'mosaml_metadata');
-        jQuery('#sp_settings').submit();
-    }
-
-    function idp_metadata_save() {
-        jQuery('#metadata_download').attr('value', 'save_connector_settings');
-    }
-
-    function set_value() {
-        jQuery('#metadata_download').attr('value', 'mosaml_metadata_download');
-        jQuery('#saml_form').submit();
-    }
-
-    function save_sp_data() {
-        jQuery('#metadata_download').attr('value', 'save_sp_settings');
-        jQuery('#sp_settings').submit();
-    }
-
-    function set_acs() {
-        document.getElementById("acs_url").value = document.getElementById("response").value;
-    }
-
-    function set_entityid() {
-        document.getElementById("sp_entity_id").value = document.getElementById("site_base_url").z;
-    }
-
-    function copyURL() {
-        const copyText = document.getElementById("metadata_url");
-        navigator.clipboard.writeText(copyText);
-
-        var tooltip = document.getElementById("myTooltip");
-        tooltip.innerHTML = "URL Copied: ";
-    }
-
-    function outFunc() {
-        var tooltip = document.getElementById("myTooltip");
-        tooltip.innerHTML = "Copy to clipboard";
-    }
-
-    $(document).ready(function () {
-        let session = document.getElementById('taby').value;
-        if (session == "Service_Provider") {
-            openTab('Service_Provider');
-        } else if (session == "Identity_Provider") {
-            openTab('Identity_Provider');
-        } else if (session == "Support") {
-            openTab('Support');
-        } else if (session == "Providers") {
-            openTab('Providers');
-        } else {
-            openTab('Account');
-        }
-
-    });
-
-    function openTab(activeTab) {
-
-        document.getElementById("leftContainer").classList.add("showElement");
-        document.getElementById("leftContainer").classList.remove("hideElement");
-
-        let i, tabcontent, tablinks;
-        tabcontent = document.getElementsByClassName("tabcontent");
-        for (i = 0; i < tabcontent.length; i++) {
-            tabcontent[i].style.display = "none";
-        }
-
-        tablinks = document.getElementsByClassName("tablinks");
-        for (i = 0; i < tablinks.length; i++) {
-            tablinks[i].classList.remove("active");
-        }
-
-        if (activeTab !== "Upgrade") {
-            document.getElementById(activeTab).style.display = "block";
-            document.getElementById("Support").style.display = "block";
-            document.getElementById(activeTab + "_Tab").classList.add("active");
-        } else {
-            document.getElementById(activeTab).style.display = "block";
-            document.getElementById("leftContainer").classList.replace("showElement", "hideElement");
-            document.getElementById("Upgrade_Tab").classList.add("active");
-        }
-    }
-
-    function removeFlashMessage() {
-        document.querySelectorAll('.typo3-messages').forEach(function (a) {
-            a.remove();
-            console.log("remove typo3 messages.");
-        });
-    }
-
-</script>
-
-<style>
-
-
-    html, body {
-        overflow: auto;
-        height: 100%;
-    }
-
-    .align_header {
-        text-align: center;
-        padding: 1%;
-    }
-
-    .button {
-        display: inline-block;
-        border-radius: 2px;
-        background-color: #f2f2f2;
-        border: none;
-        color: white;
-        text-shadow: 2px 2px 4px #0f0e0e;
-        font-weight: bold;
-        text-align: center;
-        font-size: 28px;
-        padding: 5px;
-        width: 200px;
-        transition: all 0.5s;
-        cursor: pointer;
-        margin: 5px;
-    }
-
-    .button span {
-        cursor: pointer;
-        display: inline-block;
-        position: relative;
-        transition: 0.5s;
-    }
-
-    .button span:after {
-        content: '\00bb';
-        position: absolute;
-        opacity: 0;
-        top: 0;
-        right: -20px;
-        transition: 0.5s;
-    }
-
-    .button:hover span {
-        padding-right: 25px;
-    }
-
-    .button:hover span:after {
-        opacity: 1;
-        right: 0;
-    }
-
-    .same-row {
-        float: left;
-    }
-
-    .new-row {
-        clear: both;
-    }
-
-    .hmargin {
-        margin: 0 10px;
-    }
-
-    .vmargin {
-        margin: 10px 0;
-    }
-
-    .margin10 {
-        margin: 10px;
-    }
-
-    .margin5 {
-        margin: 5px;
-    }
-
-    body {
-        font-family: Arial;
-    }
-
-
-    .tab {
-        overflow: hidden;
-        border: 1px solid #ccc;
-        /*background-color: #f1f1f1;*/
-        background: #002b36;
-        box-shadow: 2px 2px 2px darkgrey;
-    }
-
-    /* Style the buttons inside the tab */
-    .tab button {
-        background-color: inherit;
-        float: left;
-        border: none;
-        outline: none;
-        cursor: pointer;
-        padding: 10px 14px;
-        transition: 0.3s;
-        font-size: 18px;
-    }
-
-    /* Change background color of buttons on hover */
-    .tab button:hover {
-        /*background-color: #969cdb;*/
-        background: #afcee9;
-    }
-
-    /* Create an active/current tablink class */
-    .tab button.active {
-        background-color: rgb(36, 102, 207);
-        color: white;
-        font-weight: bolder;
-    }
-
-    /* Style the tab content */
-    .tabcontent {
-        display: none;
-        padding: 3px 6px;
-        /*border: 1px solid #ccc;*/
-        border-top: none;
-    }
-
-
-    .profileTable {
-        width: 95%;
-        background: #f1f1f1;
-        border: solid 2px grey;
-    }
-
-    .profileTable tbody td {
-        text-align: center;
-        padding: 15px;
-        border: solid 2px grey;
-    }
-
-    #topContainer {
-        display: flex;
-        flex-flow: row wrap;
-        width: 100%;
-        justify-content: space-evenly /*justify-content: space-between;*/
-    }
-
-    #leftContainer {
-        order: 1;
-        /*width: 52%;*/
-        flex: 0.2 1 45%;
-    }
-
-    #rightContainer {
-        order: 2;
-        /*width: 35%;*/
-        flex: 0.2 1 30%;
-    }
-
-    .hideElement {
-        display: none;
-    }
-
-    .showElement {
-        display: block;
-    }
-
-    hr {
-        border-top: 2px solid grey;
-    }
-
-    .helpButton {
-        background: #428bca;
-        color: white;
-        font-weight: bold;
-        /*width: 100px;*/
-        /*padding: 4px;*/
-        box-shadow: 2px 2px 2px darkgrey;
-        text-shadow: 2px 2px 4px black;
-        border-radius: 5px;
-    }
-
-    .premiumMessage {
-        color: red;
-        font-weight: bold;
-        font-size: 16px;
-    }
-
-    .premiumBox {
-        font-weight: bold;
-        background: #ffe6e6;
-    }
-
-    .gm-div {
-        display: flex;
-        flex-flow: row nowrap;
-        width: 100%;
-        /*justify-content: flex-end;*/
-        margin: 15px 0;
-    }
-
-    .gm-input-label {
-        order: 1;
-        /*width: 40%;*/
-        justify-self: left;
-        flex: 0.2 1 40%;
-        background: lightgrey;
-        margin-right: 2%;
-    }
-
-    .gm-input {
-        order: 2;
-        /*width: 35%;*/
-        flex: 0.2 1 50%;
-        margin-left: 2%;
-        justify-self: right;
-    }
-
-    .gm-submit {
-        margin-left: 2%;
-    }
-
-    .tooltip_meta {
-        position: relative;
-        display: inline-block;
-    }
-
-    .tooltip_meta .tooltiptext {
-        visibility: hidden;
-        width: 140px;
-        background-color: #555;
-        color: #fff;
-        text-align: center;
-        border-radius: 6px;
-        padding: 5px;
-        position: absolute;
-        z-index: 1;
-        bottom: 150%;
-        left: 50%;
-        margin-left: -75px;
-        opacity: 0;
-        transition: opacity 0.3s;
-    }
-
-    .tooltip_meta .tooltiptext::after {
-        content: "";
-        position: absolute;
-        top: 100%;
-        left: 50%;
-        margin-left: -5px;
-        border-width: 5px;
-        border-style: solid;
-        border-color: #555 transparent transparent transparent;
-    }
-
-    .tooltip_meta:hover .tooltiptext {
-        visibility: visible;
-        opacity: 1;
-    }
-
-    table {
-            border-collapse: collapse; /* Collapse borders to create a single border */
-            width: 100%; /* Set table width */
-        }
-
-        th, td {
-            border-top: 1px solid #ccc; /* Add a 1px solid border to header cells and data cells */
-            padding: 8px; /* Add padding for spacing */
-            text-align: center; /* Align text to the left within cells */
-        }
-
-        thead {
-            background-color: #002b36; /* Optional: Add a background color to the header row */
-            color: white;
-        }
-
-        tbody {
-            border-color: #8080803d;
-        }
-
-
-        .columns {
-            float: left;
-            width: 50%;
-            padding: 5px;
-        }
-
-        .price {
-            list-style-type: none;
-            border: 1px solid #eee;
-            margin: 0;
-            padding: 0;
-            -webkit-transition: 0.3s;
-            transition: 0.3s;
-        }
-
-        .price:hover {
-            box-shadow: 0 8px 12px 0 rgba(0, 0, 0, 0.2)
-        }
-
-        .price .header {
-            background-color: #002b36;
-            color: white;
-            font-size: 18px;
-        }
-
-        .price li {
-            border-bottom: 1px solid #eee;
-            padding: 17px;
-            text-align: center;
-        }
-
-        .price .grey {
-            background-color: #eee;
-            font-size: 14px;
-        }
-
-        .pull-right > .dropdown-menu {
-            right: 0;
-            left: auto
-        }
-
-        .media > .pull-right {
-            padding-left: 10px
-        }
-
-        .pull-right {
-            float: right !important
-        }
-
-        .row {
-            margin-right: -15px;
-            margin-left: -15px;
-        }
-
-        .table {
-            width: 100%;
-            max-width: 100%;
-            margin-bottom: 20px;
-        }
-
-        .btn-cstm {
-        background: linear-gradient(0deg, rgb(28, 77, 130) 0, rgb(36, 102, 207) 100%) !important;
-        border: none;
-        font-size: 1.7rem;
-        padding: .3rem 1.5rem;
-        color: #fff !important;
-        cursor: pointer;
-        }
-
-        .mo-saml-bootstrap-rounded {
-            border-radius: .25rem !important;
-        }
-
-        .mo-saml-bootstrap-rounded {
-            border-radius: .25rem !important;
-        }
-</style>
-
-
-</body>
-</html>
+</f:section>

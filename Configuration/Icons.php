@@ -18,7 +18,7 @@ use TYPO3\CMS\Core\Imaging\IconProvider\SvgIconProvider;
 return [
     'idp-plugin-fesaml' => [
         'provider' => SvgIconProvider::class,
-        'source' => 'EXT:idp/Resources/Public/Icons/miniorange.svg',
+        'source' => 'EXT:idp/Resources/Public/Icons/Extension.svg',
     ],
     'idp-plugin-bekey' => [
         'provider' => SvgIconProvider::class,

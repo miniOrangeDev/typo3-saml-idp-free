@@ -144,7 +144,7 @@ class SAMLUtilities extends Utilities
         XMLSecurityKey $key,
         array          $certificates,
         DOMElement     $root,
-        DomNode        $insertBefore = NULL
+        ?DomNode       $insertBefore = NULL
     )
     {
         $objXMLSecDSig = new XMLSecurityDSig();
@@ -264,7 +264,7 @@ class SAMLUtilities extends Utilities
      * @throws Exception
      */
     public static function decryptElement(DOMElement $encryptedData, XMLSecurityKey $inputKey,
-                                          array      $blacklist = array(), XMLSecurityKey $alternateKey = NULL)
+                                          array      $blacklist = array(), ?XMLSecurityKey $alternateKey = NULL)
     {
         try {
             return self::doDecryptElement($encryptedData, $inputKey, $blacklist);

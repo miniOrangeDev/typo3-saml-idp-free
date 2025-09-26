@@ -26,6 +26,7 @@ CREATE TABLE tx_idp_domain_model_fesaml
     t3ver_move_id    int(11) DEFAULT '0' NOT NULL,
 
     sys_language_uid int(11) DEFAULT '0' NOT NULL,
+    l10n_parent      int(11) DEFAULT '0' NOT NULL,
     l10n_diffsource  mediumblob,
     l10n_state       text,
 
@@ -63,6 +64,7 @@ CREATE TABLE tx_idp_domain_model_besaml
     t3ver_move_id    int(11) DEFAULT '0' NOT NULL,
 
     sys_language_uid int(11) DEFAULT '0' NOT NULL,
+    l10n_parent      int(11) DEFAULT '0' NOT NULL,
     l10n_diffsource  mediumblob,
     l10n_state       text,
 
@@ -101,6 +103,7 @@ CREATE TABLE tx_idp_domain_model_response
     t3ver_move_id    int(11) DEFAULT '0' NOT NULL,
 
     sys_language_uid int(11) DEFAULT '0' NOT NULL,
+    l10n_parent      int(11) DEFAULT '0' NOT NULL,
     l10n_diffsource  mediumblob,
     l10n_state       text,
 
@@ -153,6 +156,7 @@ CREATE TABLE customer
     cust_reg_status varchar(100) DEFAULT '',
     cust_code       varchar(100) DEFAULT '',
     customer_object varchar(100) DEFAULT '',
+    timestamp       text         DEFAULT '',
     user_limit      varchar(100) DEFAULT '',
     isEmailSent     int(11) DEFAULT '0' Not NULL,
     PRIMARY KEY (id)

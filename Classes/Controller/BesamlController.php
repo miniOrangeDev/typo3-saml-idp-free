@@ -6,23 +6,25 @@ use Exception;
 use DOMDocument;
 use Miniorange\Idp\Helper\AESEncryption;
 use Miniorange\Idp\Helper\Constants;
-use PDO;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Messaging\Renderer\ListRenderer;
 use Miniorange\Idp\Helper\CustomerSaml;
 use TYPO3\CMS\Extbase\Mvc\Controller\ActionController;
 use TYPO3\CMS\Tstemplate\Controller\TypoScriptTemplateModuleController;
-use TYPO3\CMS\Extbase\Object\ObjectManager;
 use Miniorange\Idp\Helper\Utilities;
 use Miniorange\Idp\Helper\SAMLUtilities;
 use Miniorange\Idp\Helper\PluginSettings;
 use Psr\Http\Message\ResponseInterface;
 use TYPO3\CMS\Extbase\Persistence\Repository;
 use Psr\Http\Message\ResponseFactoryInterface;
+use Psr\Http\Message\StreamFactoryInterface;
 use TYPO3\CMS\Core\Information\Typo3Version;
+use TYPO3\CMS\Core\Utility\VersionNumberUtility;
 use Miniorange\Domain\Repository\UserGroup\FrontendUserGroupRepository;
+use TYPO3\CMS\Core\Database\Connection;
 
 
 /**
@@ -30,13 +32,45 @@ use Miniorange\Domain\Repository\UserGroup\FrontendUserGroupRepository;
  */
 class BesamlController extends ActionController
 {
+    /**
+     * Helper method to execute database queries with TYPO3 v12/v13 compatibility
+     */
+    private function executeQuery($queryBuilder, $isSelect = true)
+    {
+        // Check if the new methods exist (TYPO3 v13+)
+        if (method_exists($queryBuilder, 'executeQuery') && method_exists($queryBuilder, 'executeStatement')) {
+            return $isSelect ? $queryBuilder->executeQuery() : $queryBuilder->executeStatement();
+        } else {
+            // TYPO3 v12 and earlier - use legacy methods
+            return $queryBuilder->execute();
+        }
+    }
+
+    /**
+     * Helper method to fetch data with TYPO3 v12/v13 compatibility
+     */
+    private function fetchData($result, $method = 'fetch')
+    {
+        // Check if the new methods exist (TYPO3 v13+)
+        if (method_exists($result, 'fetchAssociative') && method_exists($result, 'fetchAllAssociative')) {
+            switch ($method) {
+                case 'fetch':
+                    return $result->fetchAssociative();
+                case 'fetchAll':
+                    return $result->fetchAllAssociative();
+                case 'fetchOne':
+                    return $result->fetchOne();
+                default:
+                    return $result->fetchAssociative();
+            }
+        } else {
+            // TYPO3 v12 and earlier - use legacy methods
+            return $result->$method();
+        }
+    }
 
     protected $response = null;
-    protected $responseFactory = null;
-    /**
-     * @var \TYPO3\CMS\Extbase\Object\ObjectManagerInterface
-     */
-    protected $objectManager;
+    protected $selectedProvider;
     private $myjson = null;
     private $itemRepository = null;
     private $tab = null;
@@ -51,15 +85,34 @@ class BesamlController extends ActionController
         $typo3Version = $version->getVersion();
         $send_email = $this->fetch_cust(Constants::EMAIL_SENT);
         $token = Constants::ENCRYPT_TOKEN;
-        if(!$send_email)
+        $customer = new CustomerSaml();
+        $timestamp = Utilities::fetch_cust(Constants::TIMESTAMP);
+        if($timestamp==NULL)
             {
-                $customer = new CustomerSaml();
+                $timestamp = time();
                 $site = GeneralUtility::getIndpEnv('TYPO3_REQUEST_HOST');
-                $values=array($site);
                 $email = !empty($GLOBALS['BE_USER']->user['email']) ? $GLOBALS['BE_USER']->user['email'] : $GLOBALS['BE_USER']->user['username'];
-                $customer->submit_to_magento_team($email,'Installed Successfully', $values, $typo3Version);
-                $this->update_cust(Constants::EMAIL_SENT,1);
+                $values=array($site);
+                $data = [
+                    'timeStamp' => $timestamp,
+                    'adminEmail' => $email,
+                    'domain' => $site,
+                    'pluginName' => 'Typo3 IDP Free',
+                    'pluginVersion' => Constants::PLUGIN_VERSION,
+                    'pluginFirstPageVisit' => 'Providers',
+                    'environmentName' => 'TYPO3',
+                    'environmentVersion' => $typo3Version,
+                    'IsFreeInstalled' => 'Yes',
+                    'FreeInstalledDate' =>  date('Y-m-d H:i:s')
+                ];
+                $customer->syncPluginMetrics($data);
+                $this->update_cust(Constants::TIMESTAMP, $timestamp);
                 $this->update_cust('user_limit',AESEncryption::encrypt_data(10,$token));
+                $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(Constants::TABLE_SAML);
+                $uid = $this->fetchData(
+                    $this->executeQuery($queryBuilder->select('uid')->from(Constants::TABLE_SAML), true),
+                    'fetchOne'
+                );
                 GeneralUtility::makeInstance(\TYPO3\CMS\Core\Cache\CacheManager::class)->flushCaches();
             }
         //------------ IDENTITY PROVIDER SETTINGS---------------
@@ -67,22 +120,28 @@ class BesamlController extends ActionController
 
             $sp_limit = 1;
             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('saml');
-            $added_sps = $queryBuilder
-                ->count('uid')
-                ->from('saml')
-                ->execute()
-                ->fetchOne();
+            $added_sps = $this->fetchData(
+                $this->executeQuery($queryBuilder
+                    ->count('uid')
+                    ->from('saml'), true),
+                'fetchOne'
+            );
             error_log("New Request Received. \nPost Data: " . print_r($_POST, true));
             if ($_POST['option'] == 'save_connector_settings') {
-                if ($_POST['idp_entity_id'] != null || $_POST['saml_login_url'] != null) {
+                if ($_POST['idp_entity_id'] != null && $_POST['saml_login_url'] != null && $_POST['sp_name'] != null) {
 
                     error_log("Received IdP Settings : ");
                     $value1 = $this->validateURL($_POST['saml_login_url']);
                     $value2 = $this->validateURL($_POST['idp_entity_id']);
 
-                    $obj = new BesamlController();
-                    $obj->storeToDatabase($_POST, $sp_limit, $added_sps);
-                    $this->selectedProvider = $_POST['sp_name'];
+                    if ($value1 == 1 && $value2 == 1) {
+                        $obj = new BesamlController();
+                        $obj->storeToDatabase($_POST, $sp_limit, $added_sps);
+                        $this->selectedProvider = $_POST['sp_name'];
+                        Utilities::showSuccessFlashMessage('Identity Provider settings saved successfully.');
+                    } else {
+                        Utilities::showErrorFlashMessage('Please provide valid URLs for SAML Login URL and IDP Entity ID.');
+                    }
                 } else {
                     Utilities::showErrorFlashMessage('Please provide proper values.');
                 }
@@ -102,22 +161,24 @@ class BesamlController extends ActionController
             if ($_POST['option'] == 'delete') {
                 $selectedIdp = $_POST['sp_name'];
                 $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('saml');
-                $queryBuilder->delete('saml')->where($queryBuilder->expr()->eq('sp_name', $queryBuilder->createNamedParameter($selectedIdp, PDO::PARAM_STR)))->execute();
+                $this->executeQuery($queryBuilder->delete('saml')->where($queryBuilder->expr()->eq('sp_name', $queryBuilder->createNamedParameter($selectedIdp))), false);
                 $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('saml');
-                $added_idps = $queryBuilder
-                    ->count('uid')
-                    ->from('saml')
-                    ->execute()
-                    ->fetchOne();
+                $added_idps = $this->fetchData(
+                    $this->executeQuery($queryBuilder
+                        ->count('uid')
+                        ->from('saml'), true),
+                    'fetchOne'
+                );
                 if ($added_idps == 0)
                     $this->selectedProvider = '';
                 else {
                     $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('saml');
-                    $this->selectedProvider = $queryBuilder
-                        ->select('uid')
-                        ->from('saml')
-                        ->execute()
-                        ->fetchOne();
+                    $this->selectedProvider = $this->fetchData(
+                        $this->executeQuery($queryBuilder
+                            ->select('uid')
+                            ->from('saml'), true),
+                        'fetchOne'
+                    );
                 }
                 $this->view->assign('selectedProvider', $this->selectedProvider);
                 $this->tab = 'Providers';
@@ -182,8 +243,8 @@ class BesamlController extends ActionController
                 } elseif ($_POST['option'] == 'save_connector_settings') {
                     $this->tab = "Identity_Provider";
                     $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('saml');
-                    $query = $queryBuilder->select('*')->from('saml')->execute();
-                    while ($row = $query->fetch()) {
+                    $query = $this->executeQuery($queryBuilder->select('*')->from('saml'), true);
+                    while ($row = $this->fetchData($query, 'fetch')) {
                         $this->selectedProvider = $row['sp_name'];
                         break;
                     }
@@ -206,9 +267,9 @@ class BesamlController extends ActionController
         $allUserGroups = GeneralUtility::makeInstance('Miniorange\\Idp\\Domain\\Repository\\UserGroup\\FrontendUserGroupRepository')->findAll();
 
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('saml');
-        $query = $queryBuilder->select('*')->from('saml')->execute();
+        $query = $this->executeQuery($queryBuilder->select('*')->from('saml'), true);
         $providersArray = [];
-        while ($row = $query->fetch()) {
+        while ($row = $this->fetchData($query, 'fetch')) {
             $providersArray[] = $row;
         }
 
@@ -233,11 +294,12 @@ class BesamlController extends ActionController
         $this->view->assign('conf_sp', $spObject);
         $cust_reg_status = $this->fetch_cust('cust_reg_status');
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('sso_users');
-        $added_users = $queryBuilder
-        ->count('id')
-        ->from('sso_users')
-        ->execute()
-        ->fetchOne();
+        $added_users = $this->fetchData(
+            $this->executeQuery($queryBuilder
+                ->count('id')
+                ->from('sso_users'), true),
+            'fetchOne'
+        );
         $users_remaining = 10 - $added_users;
 
         //------------ LOADING VARIABLES TO BE USED IN VIEW---------------
@@ -286,23 +348,24 @@ class BesamlController extends ActionController
     {
         $this->myjson = json_encode($creds);
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('saml');
-        $uid = $queryBuilder->select('uid')->from('saml')
-            ->where($queryBuilder->expr()->eq('sp_name', $queryBuilder->createNamedParameter($creds['sp_name'], PDO::PARAM_STR)))
-            ->execute()->fetch();
+        $uid = $this->fetchData(
+            $this->executeQuery($queryBuilder->select('uid')->from('saml')
+                ->where($queryBuilder->expr()->eq('sp_name', $queryBuilder->createNamedParameter($creds['sp_name']))), true),
+            'fetch'
+        );
         
         $uid = is_array($uid) ? $uid['uid'] : $uid;
         if ($uid == null) {
             if($added_sps < $sp_limit)
             {
                 error_log("inserting new row: ");
-                $affectedRows = $queryBuilder
+                $this->executeQuery($queryBuilder
                     ->insert('saml')
                     ->values([
                         'sp_name' => $creds['sp_name'],
                         'idp_entity_id' => $creds['idp_entity_id'],
                         'saml_login_url' => $creds['saml_login_url'],
-                        'object' => $this->myjson])
-                    ->execute();
+                        'object' => $this->myjson]), false);
             }
             else
             {
@@ -311,12 +374,12 @@ class BesamlController extends ActionController
         } else {
             error_log("Updating previous settings : " . $uid);
             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('saml');
-            $queryBuilder->update('saml')->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, PDO::PARAM_INT)))
-                ->set('idp_entity_id', $creds['idp_entity_id'])->execute();
-            $queryBuilder->update('saml')->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, PDO::PARAM_INT)))
-                ->set('saml_login_url', $creds['saml_login_url'])->execute();
-            $queryBuilder->update('saml')->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, PDO::PARAM_INT)))
-                ->set('object', $this->myjson)->execute();
+            $this->executeQuery($queryBuilder->update('saml')->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, )))
+                ->set('idp_entity_id', $creds['idp_entity_id']), false);
+            $this->executeQuery($queryBuilder->update('saml')->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, )))
+                ->set('saml_login_url', $creds['saml_login_url']), false);
+            $this->executeQuery($queryBuilder->update('saml')->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, )))
+                ->set('object', $this->myjson), false);
         }
     }
 
@@ -331,16 +394,19 @@ class BesamlController extends ActionController
 
         if(!isset($this->selectedProvider) || is_null($this->selectedProvider))
         {
-            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('saml');
-            $query = $queryBuilder->select('*')->from('saml')->execute();
-            while ($row = $query->fetch()) {
-                $this->selectedProvider = $row['sp_name'];
-                break;
-            }
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('saml');
+        $query = $this->executeQuery($queryBuilder->select('*')->from('saml'), true);
+        while ($row = $this->fetchData($query, 'fetch')) {
+            $this->selectedProvider = $row['sp_name'];
+            break;
+        }
             $this->selectedProvider = isset($this->selectedProvider) ? $this->selectedProvider : null;
         }
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('saml');
-        $variable = $queryBuilder->select($var)->from('saml')->where($queryBuilder->expr()->eq('sp_name', $queryBuilder->createNamedParameter($this->selectedProvider, PDO::PARAM_STR)))->execute()->fetch();
+        $variable = $this->fetchData(
+            $this->executeQuery($queryBuilder->select($var)->from('saml')->where($queryBuilder->expr()->eq('sp_name', $queryBuilder->createNamedParameter($this->selectedProvider, ))), true),
+            'fetch'
+        );
         return is_array($variable) ? $variable[$var] : $variable;
     }
 
@@ -427,29 +493,30 @@ class BesamlController extends ActionController
         $this->myjson = json_encode($postArray);
 
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(Constants::TABLE_SAML);
-        $uid = $queryBuilder->select('uid')->from(Constants::TABLE_SAML)
-            ->where($queryBuilder->expr()->eq('sp_name', $queryBuilder->createNamedParameter($postArray['sp_name'], PDO::PARAM_STR)))
-            ->execute()->fetch();
+        $uid = $this->fetchData(
+            $this->executeQuery($queryBuilder->select('uid')->from(Constants::TABLE_SAML)
+                ->where($queryBuilder->expr()->eq('sp_name', $queryBuilder->createNamedParameter($postArray['sp_name'], ))), true),
+            'fetch'
+        );
         $uid = is_array($uid) ? $uid['uid'] : $uid;
         if ($uid == null) {
-            $affectedRows = $queryBuilder
+            $this->executeQuery($queryBuilder
                 ->insert(Constants::TABLE_SAML)
                 ->values([
                     'sp_entity_id' => $postArray['acs_url'],
                     'acs_url' => $postArray['acs_url'],
                     'sp_name' => $postArray['sp_name'],
                     'sp_default_relaystate' => $postArray['sp_default_relaystate'],
-                    'spobject' => $this->myjson])
-                ->execute();
+                    'spobject' => $this->myjson]), false);
         } else {
-            $queryBuilder->update(Constants::TABLE_SAML)->where($queryBuilder->expr()->eq('uid', $uid))
-                ->set('sp_entity_id', $postArray['sp_entity_id'])->execute();
-            $queryBuilder->update(Constants::TABLE_SAML)->where($queryBuilder->expr()->eq('uid', $uid))
-                ->set('acs_url', $postArray['acs_url'])->execute();
-            $queryBuilder->update(Constants::TABLE_SAML)->where($queryBuilder->expr()->eq('uid', $uid))
-                ->set('sp_default_relaystate', $postArray['sp_default_relaystate'])->execute();
-            $queryBuilder->update(Constants::TABLE_SAML)->where($queryBuilder->expr()->eq('uid', $uid))
-                ->set('spobject', $this->myjson)->execute();
+            $this->executeQuery($queryBuilder->update(Constants::TABLE_SAML)->where($queryBuilder->expr()->eq('uid', $uid))
+                ->set('sp_entity_id', $postArray['sp_entity_id']), false);
+            $this->executeQuery($queryBuilder->update(Constants::TABLE_SAML)->where($queryBuilder->expr()->eq('uid', $uid))
+                ->set('acs_url', $postArray['acs_url']), false);
+            $this->executeQuery($queryBuilder->update(Constants::TABLE_SAML)->where($queryBuilder->expr()->eq('uid', $uid))
+                ->set('sp_default_relaystate', $postArray['sp_default_relaystate']), false);
+            $this->executeQuery($queryBuilder->update(Constants::TABLE_SAML)->where($queryBuilder->expr()->eq('uid', $uid))
+                ->set('spobject', $this->myjson), false);
         }
     }
 
@@ -466,7 +533,7 @@ class BesamlController extends ActionController
         if ($check_content['status'] == 'CUSTOMER_NOT_FOUND') {
             $message = GeneralUtility::makeInstance(FlashMessage::class,
                 'ERROR', $email . ' does not exist',
-                FlashMessage::ERROR, true
+                ContextualFeedbackSeverity::ERROR, true
             );
             Utilities::showErrorFlashMessage('Customer Not Found!');
         } elseif ($check_content['status'] == 'SUCCESS') {
@@ -488,7 +555,7 @@ class BesamlController extends ActionController
             $this->insertValue();
         }
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('customer');
-        $queryBuilder->update('customer')->where((string)$queryBuilder->expr()->eq('id', $queryBuilder->createNamedParameter(1, PDO::PARAM_INT)))->set($column, $value)->execute();
+        $this->executeQuery($queryBuilder->update('customer')->where((string)$queryBuilder->expr()->eq('id', $queryBuilder->createNamedParameter(1, )))->set($column, $value), false);
     }
 
 // FETCH CUSTOMER
@@ -496,7 +563,10 @@ class BesamlController extends ActionController
     public function fetch_cust($col)
     {
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('customer');
-        $variable = $queryBuilder->select($col)->from('customer')->where($queryBuilder->expr()->eq('id', $queryBuilder->createNamedParameter(1, PDO::PARAM_INT)))->execute()->fetch();
+        $variable = $this->fetchData(
+            $this->executeQuery($queryBuilder->select($col)->from('customer')->where($queryBuilder->expr()->eq('id', $queryBuilder->createNamedParameter(1, ))), true),
+            'fetch'
+        );
         return is_array($variable) ? $variable[$col] : $variable;
     }
 
@@ -505,7 +575,7 @@ class BesamlController extends ActionController
     public function insertValue()
     {
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('customer');
-        $affectedRows = $queryBuilder->insert('customer')->values(['id' => '1'])->execute();
+        $this->executeQuery($queryBuilder->insert('customer')->values(['id' => '1']), false);
     }
 
     public function save_customer($content, $email)
@@ -533,13 +603,13 @@ class BesamlController extends ActionController
     public function save($column, $value, $table)
     {
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($table);
-        $queryBuilder->insert($table)->values([$column => $value])->execute();
+        $this->executeQuery($queryBuilder->insert($table)->values([$column => $value]), false);
     }
 
     public function update_saml_setting($column, $value)
     {
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(Constants::TABLE_SAML);
-        $queryBuilder->update(Constants::TABLE_SAML)->where($queryBuilder->expr()->eq('sp_name', $queryBuilder->createNamedParameter($this->selectedProvider, PDO::PARAM_STR)))->set($column, $value)->execute();
+        $this->executeQuery($queryBuilder->update(Constants::TABLE_SAML)->where($queryBuilder->expr()->eq('sp_name', $queryBuilder->createNamedParameter($this->selectedProvider, )))->set($column, $value), false);
     }
 
     public function validate_cert($saml_x509_certificate)

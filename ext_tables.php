@@ -1,44 +1,55 @@
 <?php
 
-use TYPO3\CMS\Extbase\Utility\ExtensionUtility;
-use TYPO3\CMS\Core\Information\Typo3Version;
+defined('TYPO3') or die();
 
-$GLOBALS['TYPO3_CONF_VARS']['SYS']['features']['security.backend.enforceContentSecurityPolicy'] = false;
-$GLOBALS['TYPO3_CONF_VARS']['FE']['cacheHash']['excludedParameters'] = ['idp_name', 'RelayState', 'option', 'SAMLRequest', 'SAMLResponse', 'SigAlg', 'Signature', 'type', 'app', 'code', 'state', 'logintype'];
+use TYPO3\CMS\Core\Information\Typo3Version;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Utility\ExtensionUtility;
+use Miniorange\Idp\Controller\FesamlController;
+use Miniorange\Idp\Controller\BesamlController;
 
 call_user_func(
     function () {
+        $version = GeneralUtility::makeInstance(Typo3Version::class);
+        $isV13OrHigher = version_compare($version, '13.0.0', '>=');
 
-        $version = new Typo3Version();
-        if (version_compare($version, '11.0.0', '>=')) {
-            $extensionName = 'Idp';
-            $cache_actions_fesaml = [Miniorange\Idp\Controller\FesamlController::class => 'request'];
-            $cache_actions_besaml = [Miniorange\Idp\Controller\BesamlController::class => 'request'];
+        $extensionName = $isV13OrHigher || version_compare($version, '10.0.0', '>=')? 'idp': 'Miniorange.idp';
+
+        $cache_actions_fesaml = $isV13OrHigher || version_compare($version, '10.0.0', '>=')? [FesamlController::class => 'request']: ['Fesaml' => 'request'];
+
+        $cache_actions_besaml = $isV13OrHigher || version_compare($version, '10.0.0', '>=')? [BesamlController::class => 'request']: ['Besaml' => 'request'];
+
+        if (!$isV13OrHigher) {
+            \TYPO3\CMS\Extbase\Utility\ExtensionUtility::registerModule(
+                $extensionName,
+                'tools', // Main module
+                'besamlkey', // Submodule key
+                '4', // Position
+                $cache_actions_besaml,
+                [
+                    'access' => 'admin,user,group',
+                    'icon'   => 'EXT:idp/Resources/Public/Icons/Extension.png',
+                    'labels' => 'LLL:EXT:idp/Resources/Private/Language/locallang_bekey.xlf',
+                ]
+            );
         } else {
-            $extensionName = 'Miniorange.Idp';
-            $cache_actions_fesaml = ['Fesaml' => 'request'];
-            $cache_actions_besaml = ['Besaml' => 'request'];
+            $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['idp']['BesamlModule'] = [
+                'extensionName'   => $extensionName,
+                'mainModuleName'  => 'tools',
+                'subModuleName'   => 'besamlkey',
+                'controllerActions' => $cache_actions_besaml,
+                'access'          => 'admin,user,group',
+                'iconIdentifier'  => 'idp-plugin-bekey',
+                'labels'          => 'LLL:EXT:idp/Resources/Private/Language/locallang_bekey.xlf',
+                'position'        => 'top',
+            ];
         }
 
-        ExtensionUtility::registerModule(
-            $extensionName,
-            'tools', // Make module a submodule of 'tools'
-            'besamlkey', // Submodule key
-            '4', // Position
-            $cache_actions_besaml,
-            [
-                'access' => 'admin,user,group',
-                'icon' => 'EXT:idp/Resources/Public/Icons/miniorange.png',
-                'source' => 'EXT:idp/Resources/Public/Icons/miniorange.svg',
-                'labels' => 'LLL:EXT:idp/Resources/Private/Language/locallang_bekey.xlf',
-            ]
-        );
-
-        ExtensionUtility::registerPlugin(
+        \TYPO3\CMS\Extbase\Utility\ExtensionUtility::registerPlugin(
             $extensionName,
             'Fesaml',
             'fesaml',
-            'EXT:idp/Resources/Public/Icons/miniorange.svg'
+            'idp-plugin-bekey'
         );
     }
 );
